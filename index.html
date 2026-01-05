@@ -2,31 +2,88 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>まばたきPDFビューア</title>
+  <title>顔操作PDFビューア（BPM同期）</title>
+
   <style>
     body {
       margin: 0;
       background: #111;
+      overflow: hidden;
     }
+
     canvas {
       display: block;
-      margin: auto;
+      margin: 0 auto;
+    }
+
+    /* BPMコントローラ（右下固定） */
+    #bpmControl {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      background: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 16px;
+      z-index: 9999;
+      width: 180px;
+    }
+
+    #bpmLabel {
+      text-align: center;
+      margin-bottom: 8px;
+      font-weight: bold;
+    }
+
+    #bpmSlider {
+      width: 100%;
+    }
+
+    /* テンポ表示（・・・・●） */
+    #tempo {
+      position: fixed;
+      right: 20px;
+      bottom: 100px;
+      color: white;
+      font-size: 24px;
+      letter-spacing: 6px;
+      z-index: 9999;
+      font-family: monospace;
     }
   </style>
 </head>
+
 <body>
 
-<canvas id="pdfCanvas"></canvas>
+  <!-- PDF表示 -->
+  <canvas id="pdfCanvas"></canvas>
 
-<!-- PDF.js（これが最重要） -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- テンポ表示 -->
+  <div id="tempo">●・・・・</div>
 
-<!-- MediaPipe -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+  <!-- BPM操作 -->
+  <div id="bpmControl">
+    <div id="bpmLabel">BPM: 120</div>
+    <input
+      type="range"
+      id="bpmSlider"
+      min="50"
+      max="160"
+      value="120"
+      step="1"
+    />
+  </div>
 
-<!-- 自分のJS -->
-<script src="main.js"></script>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <!-- MediaPipe -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+
+  <!-- 自作JS -->
+  <script src="main.js"></script>
 
 </body>
 </html>
