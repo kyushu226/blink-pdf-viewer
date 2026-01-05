@@ -54,8 +54,14 @@ debug.style.zIndex = "9999";
 debug.innerText = "起動中...";
 document.body.appendChild(debug);
 
-let faceDetected = false;
-let faceLostTime = 0;
+// ===============================
+// 顔検出＆まばたき判定
+// ===============================
+let faceDetected = true; // 初期は顔あり
+let blinkStart = null;   // 目を閉じた開始時間
+
+const SHORT_BLINK = 300;   // 短いまばたき閾値（ms）
+const LONG_BLINK = 1800;   // 長いまばたき閾値（ms）
 
 // FaceMesh 初期化
 const faceMesh = new FaceMesh({
@@ -74,43 +80,38 @@ faceMesh.onResults((results) => {
   const now = Date.now();
 
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-    // 顔検出中
+    // 顔あり
     if (!faceDetected) {
+      // 顔が戻った瞬間に判定
+      if (blinkStart) {
+        const duration = now - blinkStart;
+        if (duration > LONG_BLINK) {
+          // 長いまばたき → 前ページ
+          if (pageNum > 1) {
+            pageNum--;
+            renderPage();
+            debug.innerText = "⬅ 前のページ";
+          }
+        } else if (duration > SHORT_BLINK) {
+          // 短いまばたき → 次ページ
+          if (pageNum < pdfDoc.numPages) {
+            pageNum++;
+            renderPage();
+            debug.innerText = "➡ 次のページ";
+          }
+        }
+      }
+      blinkStart = null;
       faceDetected = true;
-      faceLostTime = 0;
     }
     debug.innerText = "🙂 顔検出中";
   } else {
-    // 顔が消えた
-    debug.innerText = "😑 顔が見えない";
-
-    if (faceDetected && faceLostTime === 0) {
-      faceLostTime = now;
-    }
-
-    // 顔が消えてから 0.3秒以上経過したら判定
-    if (faceLostTime > 0 && now - faceLostTime > 300) {
-      const duration = now - faceLostTime;
+    // 顔なし
+    if (faceDetected) {
+      blinkStart = now; // 目を閉じ始めた時間を記録
       faceDetected = false;
-      faceLostTime = 0;
-
-      // 長いまばたき (>1.8秒) → 前ページ
-      if (duration > 1800) {
-        if (pageNum > 1) {
-          pageNum--;
-          renderPage();
-          debug.innerText = "⬅ 前のページ";
-        }
-      }
-      // 短いまばたき (>0.3秒) → 次ページ
-      else if (duration > 300) {
-        if (pageNum < pdfDoc.numPages) {
-          pageNum++;
-          renderPage();
-          debug.innerText = "➡ 次のページ";
-        }
-      }
     }
+    debug.innerText = "😑 顔が見えない";
   }
 });
 
