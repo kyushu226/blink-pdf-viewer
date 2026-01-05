@@ -2,20 +2,11 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>Blink PDF Viewer</title>
-
-  <!-- MediaPipe -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-
-  <!-- PDF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
+  <title>まばたきPDFビューア</title>
   <style>
     body {
       margin: 0;
-      background: black;
-      overflow: hidden;
+      background: #111;
     }
     canvas {
       display: block;
@@ -24,7 +15,13 @@
   </style>
 </head>
 <body>
-  <canvas id="pdfCanvas"></canvas>
-  <script src="main.js"></script>
+
+<canvas id="pdfCanvas"></canvas>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+<script src="main.js"></script>
+
 </body>
 </html>
