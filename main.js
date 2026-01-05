@@ -18,7 +18,7 @@ pdfjsLib.getDocument("sample.pdf").promise.then(async (pdf) => {
   await renderAllPages();
 });
 
-// 全ページ描画（順序保証）
+// 全ページ描画
 async function renderAllPages() {
   for (let i = 1; i <= pdfDoc.numPages; i++) {
     const page = await pdfDoc.getPage(i);
@@ -58,12 +58,13 @@ debug.innerText = "起動中...";
 document.body.appendChild(debug);
 
 // ===============================
-// 顔の上下でスクロール
+// 顔の上下でスクロール（基準位置から判定）
 // ===============================
-let scrollSpeed = 0; // スクロール量（正：下、負：上）
-const SCROLL_MAX_SPEED = 15; // 1フレームあたりのスクロール量
-const FACE_UPPER = 0.48;      // 顔上向き判定
-const FACE_LOWER = 0.55;      // 顔下向き判定
+let scrollSpeed = 0;
+const SCROLL_MAX_SPEED = 15;  // スクロール速度
+const DELTA_THRESHOLD = 0.02; // 顔の傾きでスクロール開始する変化量
+
+let baselineY = null; // 初回の顔の中央基準
 
 const faceMesh = new FaceMesh({
   locateFile: (file) =>
@@ -76,7 +77,7 @@ faceMesh.setOptions({
   minTrackingConfidence: 0.5,
 });
 
-// ループでスクロール
+// スクロールループ
 function scrollLoop() {
   if (scrollSpeed !== 0) {
     window.scrollBy({ top: scrollSpeed, behavior: "auto" });
@@ -89,23 +90,29 @@ scrollLoop();
 faceMesh.onResults((results) => {
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     const landmarks = results.multiFaceLandmarks[0];
-
-    // 顔中央のy座標（鼻＋両目）
     const noseY = landmarks[1].y;
     const leftEyeY = (landmarks[33].y + landmarks[133].y) / 2;
     const rightEyeY = (landmarks[362].y + landmarks[263].y) / 2;
     const faceY = (noseY + leftEyeY + rightEyeY) / 3;
 
-    // 上下判定
-    if (faceY < FACE_UPPER) {
-      scrollSpeed = -SCROLL_MAX_SPEED; // 上向き → 上スクロール
-      debug.innerText = "⬆ 顔上向き：スクロール上";
-    } else if (faceY > FACE_LOWER) {
-      scrollSpeed = SCROLL_MAX_SPEED;  // 下向き → 下スクロール
-      debug.innerText = "⬇ 顔下向き：スクロール下";
+    // 初回検出時に基準位置を保存
+    if (baselineY === null) {
+      baselineY = faceY;
+      debug.innerText = "📌 基準位置設定";
+      return;
+    }
+
+    const delta = faceY - baselineY;
+
+    if (delta > DELTA_THRESHOLD) {
+      scrollSpeed = SCROLL_MAX_SPEED;   // 顔下向き → 下スクロール
+      debug.innerText = `⬇ 下向き：スクロール下 (Δ=${delta.toFixed(3)})`;
+    } else if (delta < -DELTA_THRESHOLD) {
+      scrollSpeed = -SCROLL_MAX_SPEED;  // 顔上向き → 上スクロール
+      debug.innerText = `⬆ 上向き：スクロール上 (Δ=${delta.toFixed(3)})`;
     } else {
-      scrollSpeed = 0;                 // 中央 → 停止
-      debug.innerText = "➡ 顔中央：スクロール停止";
+      scrollSpeed = 0;                  // 顔中央 → 停止
+      debug.innerText = `➡ 中央：スクロール停止 (Δ=${delta.toFixed(3)})`;
     }
   } else {
     scrollSpeed = 0;
