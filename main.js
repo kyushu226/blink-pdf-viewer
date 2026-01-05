@@ -82,33 +82,35 @@ faceMesh.onResults((results) => {
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     // 顔あり
     if (!faceDetected) {
-      // 顔が戻った瞬間に判定
-      if (blinkStart) {
-        const duration = now - blinkStart;
-        if (duration > LONG_BLINK) {
-          // 長いまばたき → 前ページ
-          if (pageNum > 1) {
-            pageNum--;
-            renderPage();
-            debug.innerText = "⬅ 前のページ";
-          }
-        } else if (duration > SHORT_BLINK) {
-          // 短いまばたき → 次ページ
-          if (pageNum < pdfDoc.numPages) {
-            pageNum++;
-            renderPage();
-            debug.innerText = "➡ 次のページ";
-          }
+      // 顔が戻った瞬間にまばたきを判定
+      const duration = now - blinkStart;
+
+      if (duration > LONG_BLINK) {
+        // 長いまばたき → 前ページ
+        if (pageNum > 1) {
+          pageNum--;
+          renderPage();
+          debug.innerText = "⬅ 前のページ";
+        }
+      } else if (duration > SHORT_BLINK) {
+        // 短いまばたき → 次ページ
+        if (pageNum < pdfDoc.numPages) {
+          pageNum++;
+          renderPage();
+          debug.innerText = "➡ 次のページ";
         }
       }
+
       blinkStart = null;
       faceDetected = true;
+    } else {
+      debug.innerText = "🙂 顔検出中";
     }
-    debug.innerText = "🙂 顔検出中";
   } else {
     // 顔なし
     if (faceDetected) {
-      blinkStart = now; // 目を閉じ始めた時間を記録
+      // 目を閉じ始めた時間を記録
+      blinkStart = now;
       faceDetected = false;
     }
     debug.innerText = "😑 顔が見えない";
@@ -135,3 +137,4 @@ navigator.mediaDevices
   .catch(() => {
     debug.innerText = "❌ カメラ起動失敗";
   });
+
