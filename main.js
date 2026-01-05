@@ -2,8 +2,12 @@
 // PDF.js 初期設定
 // ===============================
 const pdfContainer = document.createElement("div");
-pdfContainer.style.width = "100vw";
+pdfContainer.style.width = "100%";
+pdfContainer.style.maxWidth = "100vw"; // iPad画面にフィット
 pdfContainer.style.background = "#111";
+pdfContainer.style.display = "flex";
+pdfContainer.style.flexDirection = "column";
+pdfContainer.style.alignItems = "center";
 document.body.appendChild(pdfContainer);
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -18,7 +22,7 @@ pdfjsLib.getDocument("sample.pdf").promise.then(async (pdf) => {
   await renderAllPages();
 });
 
-// 全ページ描画
+// 全ページ描画（縦に並べる）
 async function renderAllPages() {
   for (let i = 1; i <= pdfDoc.numPages; i++) {
     const page = await pdfDoc.getPage(i);
@@ -27,7 +31,8 @@ async function renderAllPages() {
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     canvas.style.display = "block";
-    canvas.style.margin = "10px auto";
+    canvas.style.margin = "10px 0";
+    canvas.style.maxWidth = "95vw"; // iPad画面幅に収める
     pdfContainer.appendChild(canvas);
     pageCanvases[i - 1] = canvas;
     await page.render({
@@ -58,13 +63,12 @@ debug.innerText = "起動中...";
 document.body.appendChild(debug);
 
 // ===============================
-// 顔の上下でスクロール（基準位置から判定）
-// ===============================
+// 顔の上下でスクロール（中央基準）
 let scrollSpeed = 0;
-const SCROLL_MAX_SPEED = 15;  // スクロール速度
-const DELTA_THRESHOLD = 0.02; // 顔の傾きでスクロール開始する変化量
+const SCROLL_MAX_SPEED = 10;  // iPad用に少し控えめ
+const DELTA_THRESHOLD = 0.02;
 
-let baselineY = null; // 初回の顔の中央基準
+let baselineY = null;
 
 const faceMesh = new FaceMesh({
   locateFile: (file) =>
@@ -77,7 +81,7 @@ faceMesh.setOptions({
   minTrackingConfidence: 0.5,
 });
 
-// スクロールループ
+// ループでスクロール
 function scrollLoop() {
   if (scrollSpeed !== 0) {
     window.scrollBy({ top: scrollSpeed, behavior: "auto" });
@@ -95,7 +99,6 @@ faceMesh.onResults((results) => {
     const rightEyeY = (landmarks[362].y + landmarks[263].y) / 2;
     const faceY = (noseY + leftEyeY + rightEyeY) / 3;
 
-    // 初回検出時に基準位置を保存
     if (baselineY === null) {
       baselineY = faceY;
       debug.innerText = "📌 基準位置設定";
@@ -105,13 +108,13 @@ faceMesh.onResults((results) => {
     const delta = faceY - baselineY;
 
     if (delta > DELTA_THRESHOLD) {
-      scrollSpeed = SCROLL_MAX_SPEED;   // 顔下向き → 下スクロール
+      scrollSpeed = SCROLL_MAX_SPEED;   // 下スクロール
       debug.innerText = `⬇ 下向き：スクロール下 (Δ=${delta.toFixed(3)})`;
     } else if (delta < -DELTA_THRESHOLD) {
-      scrollSpeed = -SCROLL_MAX_SPEED;  // 顔上向き → 上スクロール
+      scrollSpeed = -SCROLL_MAX_SPEED;  // 上スクロール
       debug.innerText = `⬆ 上向き：スクロール上 (Δ=${delta.toFixed(3)})`;
     } else {
-      scrollSpeed = 0;                  // 顔中央 → 停止
+      scrollSpeed = 0;                  // 停止
       debug.innerText = `➡ 中央：スクロール停止 (Δ=${delta.toFixed(3)})`;
     }
   } else {
