@@ -55,7 +55,6 @@ debug.innerText = "起動中...";
 document.body.appendChild(debug);
 
 let faceDetected = false;
-let lastTrigger = 0;
 let faceLostTime = 0;
 
 // FaceMesh 初期化
@@ -75,24 +74,27 @@ faceMesh.onResults((results) => {
   const now = Date.now();
 
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+    // 顔検出中
     if (!faceDetected) {
       faceDetected = true;
       faceLostTime = 0;
     }
     debug.innerText = "🙂 顔検出中";
   } else {
+    // 顔が消えた
     debug.innerText = "😑 顔が見えない";
 
     if (faceDetected && faceLostTime === 0) {
       faceLostTime = now;
     }
 
+    // 顔が消えてから 0.3秒以上経過したら判定
     if (faceLostTime > 0 && now - faceLostTime > 300) {
       const duration = now - faceLostTime;
       faceDetected = false;
       faceLostTime = 0;
 
-      // 長いまばたき → 前ページ
+      // 長いまばたき (>1.8秒) → 前ページ
       if (duration > 1800) {
         if (pageNum > 1) {
           pageNum--;
@@ -100,7 +102,7 @@ faceMesh.onResults((results) => {
           debug.innerText = "⬅ 前のページ";
         }
       }
-      // 短いまばたき → 次ページ
+      // 短いまばたき (>0.3秒) → 次ページ
       else if (duration > 300) {
         if (pageNum < pdfDoc.numPages) {
           pageNum++;
