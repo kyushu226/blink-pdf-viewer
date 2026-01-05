@@ -1,157 +1,141 @@
-/***********************
- * PDF.js 設定
- ***********************/
+/********************
+ * PDF 全ページ表示
+ ********************/
 const url = "sample.pdf";
 const canvas = document.getElementById("pdfCanvas");
 const ctx = canvas.getContext("2d");
 
-let pdfDoc = null;
-let pageNum = 1;
-let scale = 1.4;
+pdfjsLib.getDocument(url).promise.then(async (pdf) => {
+  let totalHeight = 0;
+  const pages = [];
 
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 1.5 });
+    pages.push({ page, viewport });
+    totalHeight += viewport.height;
+  }
 
-pdfjsLib.getDocument(url).promise.then((pdf) => {
-  pdfDoc = pdf;
-  renderPage(pageNum);
+  canvas.width = pages[0].viewport.width;
+  canvas.height = totalHeight;
+
+  let y = 0;
+  for (const p of pages) {
+    await p.page.render({
+      canvasContext: ctx,
+      viewport: p.viewport,
+      transform: [1, 0, 0, 1, 0, y]
+    }).promise;
+    y += p.viewport.height;
+  }
 });
 
-function renderPage(num) {
-  pdfDoc.getPage(num).then((page) => {
-    const viewport = page.getViewport({ scale });
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+/********************
+ * BPM & メトロノーム
+ ********************/
+let bpm = 120;
+let running = false;
+let beatIndex = 0;
+let lastBeatTime = 0;
 
-    page.render({
-      canvasContext: ctx,
-      viewport: viewport,
-    });
-  });
+const tempoEl = document.getElementById("tempo");
+const bpmLabel = document.getElementById("bpmLabel");
+const bpmSlider = document.getElementById("bpmSlider");
+const bpmToggle = document.getElementById("bpmToggle");
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function clickSound() {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.frequency.value = 1000;
+  gain.gain.value = 0.2;
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.05);
 }
 
-/***********************
- * カメラ & 顔認識
- ***********************/
-const video = document.createElement("video");
-video.style.display = "none";
-document.body.appendChild(video);
-
-// デバッグ表示
-const debug = document.createElement("div");
-debug.style.position = "fixed";
-debug.style.top = "10px";
-debug.style.left = "10px";
-debug.style.background = "rgba(0,0,0,0.7)";
-debug.style.color = "lime";
-debug.style.padding = "8px";
-debug.style.fontSize = "16px";
-debug.style.zIndex = "9999";
-debug.innerText = "📷 カメラ起動中";
-document.body.appendChild(debug);
-
-// 正面キャリブレーション
-let calibrated = false;
-let neutralY = 0;
-
-// スクロール制御
-let scrollMode = "stop"; // up / down / stop
-let scrollSpeed = 0;
-
-// BPM制御
-const bpmSlider = document.getElementById("bpmSlider");
-const bpmLabel = document.getElementById("bpmLabel");
-const tempo = document.getElementById("tempo");
-
-let bpm = 120;
 bpmSlider.oninput = () => {
   bpm = Number(bpmSlider.value);
   bpmLabel.innerText = `BPM: ${bpm}`;
 };
 
-let tempoIndex = 0;
-setInterval(() => {
-  tempoIndex = (tempoIndex + 1) % 5;
-  tempo.innerText = "・・・・".split("").map((c, i) => i === tempoIndex ? "●" : "・").join("");
-}, () => (60000 / bpm) / 4);
+bpmToggle.onclick = () => {
+  running = !running;
+  bpmToggle.innerText = running ? "■ 停止" : "▶ 再生";
+  lastBeatTime = performance.now();
+};
 
-// FaceMesh
+function updateTempo(time) {
+  if (running) {
+    const interval = 60000 / bpm;
+    if (time - lastBeatTime >= interval) {
+      lastBeatTime += interval;
+      beatIndex = (beatIndex + 1) % 5;
+      tempoEl.innerText = "・・・・".split("").map((d, i) => i === beatIndex ? "●" : "・").join("");
+      clickSound();
+    }
+  }
+  requestAnimationFrame(updateTempo);
+}
+requestAnimationFrame(updateTempo);
+
+/********************
+ * 顔認識 + キャリブレーション
+ ********************/
+let centerY = null;
+let scrollSpeed = 0;
+
+document.getElementById("setCenter").onclick = () => {
+  centerY = lastFaceY;
+  alert("正面を記憶しました");
+};
+
+const video = document.createElement("video");
+video.style.display = "none";
+document.body.appendChild(video);
+
+let lastFaceY = 0;
+
 const faceMesh = new FaceMesh({
-  locateFile: (file) =>
-    `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`,
 });
 
-faceMesh.setOptions({
-  maxNumFaces: 1,
-  minDetectionConfidence: 0.5,
-  minTrackingConfidence: 0.5,
+faceMesh.setOptions({ maxNumFaces: 1 });
+
+faceMesh.onResults((res) => {
+  if (!res.multiFaceLandmarks) return;
+
+  const y = res.multiFaceLandmarks[0][1].y;
+  lastFaceY = y;
+
+  if (centerY === null) return;
+
+  const diff = y - centerY;
+
+  if (diff > 0.03) scrollSpeed = 4;
+  else if (diff < -0.03) scrollSpeed = -4;
+  else scrollSpeed = 0;
 });
 
-faceMesh.onResults((results) => {
-  if (!results.multiFaceLandmarks) return;
-
-  const landmarks = results.multiFaceLandmarks[0];
-
-  // 鼻先（安定）
-  const noseY = landmarks[1].y;
-
-  // キャリブレーション
-  if (!calibrated) {
-    neutralY = noseY;
-    calibrated = true;
-    debug.innerText = "✅ 正面を記憶しました";
-    return;
-  }
-
-  const diff = noseY - neutralY;
-
-  // 閾値
-  const threshold = 0.03;
-
-  if (diff > threshold) {
-    scrollMode = "down";
-    scrollSpeed = Math.min(diff * 3000, 30);
-    debug.innerText = "⬇️ 下向き：スクロール中";
-  } else if (diff < -threshold) {
-    scrollMode = "up";
-    scrollSpeed = Math.min(-diff * 3000, 30);
-    debug.innerText = "⬆️ 上向き：スクロール中";
-  } else {
-    scrollMode = "stop";
-    debug.innerText = "⏸ 正面：停止";
-  }
-});
-
-// カメラ起動
 const camera = new Camera(video, {
-  onFrame: async () => {
-    await faceMesh.send({ image: video });
-  },
+  onFrame: async () => await faceMesh.send({ image: video }),
   width: 640,
-  height: 480,
+  height: 480
 });
 
-navigator.mediaDevices
-  .getUserMedia({ video: true })
-  .then((stream) => {
-    video.srcObject = stream;
-    video.play();
-    camera.start();
-  })
-  .catch(() => {
-    debug.innerText = "❌ カメラ起動失敗";
-  });
+navigator.mediaDevices.getUserMedia({ video: true }).then((s) => {
+  video.srcObject = s;
+  video.play();
+  camera.start();
+});
 
-/***********************
+/********************
  * スクロールループ
- ***********************/
+ ********************/
 function scrollLoop() {
-  if (scrollMode === "down") {
-    window.scrollBy(0, scrollSpeed);
-  } else if (scrollMode === "up") {
-    window.scrollBy(0, -scrollSpeed);
-  }
+  window.scrollBy(0, scrollSpeed);
   requestAnimationFrame(scrollLoop);
 }
-
 scrollLoop();
