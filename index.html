@@ -2,25 +2,29 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>まばたきPDFビューア</title>
+  <title>Blink PDF Viewer</title>
+
+  <!-- MediaPipe -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
   <style>
     body {
       margin: 0;
-      background: #111;
-      color: white;
+      background: black;
+      overflow: hidden;
     }
-    #pdf {
-      width: 100vw;
-      height: 100vh;
-      border: none;
+    canvas {
+      display: block;
+      margin: auto;
     }
   </style>
 </head>
 <body>
-  <iframe id="pdf" src="sample.pdf"></iframe>
-
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+  <canvas id="pdfCanvas"></canvas>
   <script src="main.js"></script>
 </body>
 </html>
