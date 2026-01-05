@@ -1,8 +1,45 @@
+// ===============================
+// PDF.js 初期設定
+// ===============================
+const canvas = document.getElementById("pdfCanvas");
+const ctx = canvas.getContext("2d");
+
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+let pdfDoc = null;
+let pageNum = 1;
+
+// PDF読み込み
+pdfjsLib.getDocument("sample.pdf").promise.then((pdf) => {
+  pdfDoc = pdf;
+  renderPage();
+});
+
+// PDFを描画する関数
+function renderPage() {
+  pdfDoc.getPage(pageNum).then((page) => {
+    const viewport = page.getViewport({ scale: 1.5 });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    page.render({
+      canvasContext: ctx,
+      viewport: viewport,
+    });
+
+    debug.innerText = `📄 ページ ${pageNum} / ${pdfDoc.numPages}`;
+  });
+}
+
+// ===============================
+// カメラ & 顔検出（MediaPipe）
+// ===============================
+
+// video要素（非表示）
 const video = document.createElement("video");
 video.style.display = "none";
 document.body.appendChild(video);
-
-const iframe = document.getElementById("pdf");
 
 // デバッグ表示
 const debug = document.createElement("div");
@@ -20,6 +57,7 @@ document.body.appendChild(debug);
 let faceDetected = false;
 let lastTrigger = 0;
 
+// FaceMesh 初期化
 const faceMesh = new FaceMesh({
   locateFile: (file) =>
     `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
@@ -31,6 +69,7 @@ faceMesh.setOptions({
   minTrackingConfidence: 0.3,
 });
 
+// 顔検出結果
 faceMesh.onResults((results) => {
   const now = Date.now();
 
@@ -39,18 +78,21 @@ faceMesh.onResults((results) => {
     faceDetected = true;
   } else {
     debug.innerText = "😑 顔が見えない";
+
+    // まばたき（顔が消えた瞬間）
     if (faceDetected && now - lastTrigger > 1200) {
       lastTrigger = now;
       faceDetected = false;
 
-      iframe.contentWindow.scrollBy({
-        top: window.innerHeight * 0.9,
-        behavior: "smooth",
-      });
+      if (pageNum < pdfDoc.numPages) {
+        pageNum++;
+        renderPage();
+      }
     }
   }
 });
 
+// カメラ起動
 const camera = new Camera(video, {
   onFrame: async () => {
     await faceMesh.send({ image: video });
@@ -70,3 +112,5 @@ navigator.mediaDevices
   .catch(() => {
     debug.innerText = "❌ カメラ起動失敗";
   });
+
+
