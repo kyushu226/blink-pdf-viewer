@@ -1,141 +1,152 @@
-/********************
+/**********************
  * PDF 全ページ表示
- ********************/
-const url = "sample.pdf";
-const canvas = document.getElementById("pdfCanvas");
-const ctx = canvas.getContext("2d");
+ **********************/
+const pdfContainer = document.getElementById("pdfContainer");
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-pdfjsLib.getDocument(url).promise.then(async (pdf) => {
-  let totalHeight = 0;
-  const pages = [];
+document.getElementById("pdfInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  pdfContainer.innerHTML = "";
+
+  const url = URL.createObjectURL(file);
+  const pdf = await pdfjsLib.getDocument(url).promise;
 
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const viewport = page.getViewport({ scale: 1.5 });
-    pages.push({ page, viewport });
-    totalHeight += viewport.height;
-  }
 
-  canvas.width = pages[0].viewport.width;
-  canvas.height = totalHeight;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
 
-  let y = 0;
-  for (const p of pages) {
-    await p.page.render({
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    pdfContainer.appendChild(canvas);
+
+    await page.render({
       canvasContext: ctx,
-      viewport: p.viewport,
-      transform: [1, 0, 0, 1, 0, y]
+      viewport: viewport,
     }).promise;
-    y += p.viewport.height;
   }
 });
 
-/********************
- * BPM & メトロノーム
- ********************/
-let bpm = 120;
-let running = false;
-let beatIndex = 0;
-let lastBeatTime = 0;
-
-const tempoEl = document.getElementById("tempo");
-const bpmLabel = document.getElementById("bpmLabel");
-const bpmSlider = document.getElementById("bpmSlider");
-const bpmToggle = document.getElementById("bpmToggle");
-
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-function clickSound() {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.frequency.value = 1000;
-  gain.gain.value = 0.2;
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(audioCtx.currentTime + 0.05);
-}
-
-bpmSlider.oninput = () => {
-  bpm = Number(bpmSlider.value);
-  bpmLabel.innerText = `BPM: ${bpm}`;
-};
-
-bpmToggle.onclick = () => {
-  running = !running;
-  bpmToggle.innerText = running ? "■ 停止" : "▶ 再生";
-  lastBeatTime = performance.now();
-};
-
-function updateTempo(time) {
-  if (running) {
-    const interval = 60000 / bpm;
-    if (time - lastBeatTime >= interval) {
-      lastBeatTime += interval;
-      beatIndex = (beatIndex + 1) % 5;
-      tempoEl.innerText = "・・・・".split("").map((d, i) => i === beatIndex ? "●" : "・").join("");
-      clickSound();
-    }
-  }
-  requestAnimationFrame(updateTempo);
-}
-requestAnimationFrame(updateTempo);
-
-/********************
- * 顔認識 + キャリブレーション
- ********************/
-let centerY = null;
-let scrollSpeed = 0;
-
-document.getElementById("setCenter").onclick = () => {
-  centerY = lastFaceY;
-  alert("正面を記憶しました");
-};
-
+/**********************
+ * 顔認識スクロール
+ **********************/
 const video = document.createElement("video");
 video.style.display = "none";
 document.body.appendChild(video);
 
-let lastFaceY = 0;
+let baseY = null;
+let scrollDir = 0;
 
 const faceMesh = new FaceMesh({
-  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`,
+  locateFile: (file) =>
+    `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
 });
 
-faceMesh.setOptions({ maxNumFaces: 1 });
+faceMesh.setOptions({
+  maxNumFaces: 1,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5,
+});
 
-faceMesh.onResults((res) => {
-  if (!res.multiFaceLandmarks) return;
+faceMesh.onResults((results) => {
+  if (!results.multiFaceLandmarks?.length || baseY === null) return;
 
-  const y = res.multiFaceLandmarks[0][1].y;
-  lastFaceY = y;
+  const noseY = results.multiFaceLandmarks[0][1].y;
 
-  if (centerY === null) return;
+  const diff = noseY - baseY;
 
-  const diff = y - centerY;
-
-  if (diff > 0.03) scrollSpeed = 4;
-  else if (diff < -0.03) scrollSpeed = -4;
-  else scrollSpeed = 0;
+  if (diff > 0.03) scrollDir = 1;     // 下向き → 下スクロール
+  else if (diff < -0.03) scrollDir = -1; // 上向き → 上スクロール
+  else scrollDir = 0;
 });
 
 const camera = new Camera(video, {
-  onFrame: async () => await faceMesh.send({ image: video }),
+  onFrame: async () => {
+    await faceMesh.send({ image: video });
+  },
   width: 640,
-  height: 480
+  height: 480,
 });
 
-navigator.mediaDevices.getUserMedia({ video: true }).then((s) => {
-  video.srcObject = s;
+navigator.mediaDevices.getUserMedia({ video: true }).then((stream) => {
+  video.srcObject = stream;
   video.play();
   camera.start();
 });
 
-/********************
+document.getElementById("calibrateBtn").onclick = () => {
+  if (!video.videoWidth) return;
+  baseY = null;
+  setTimeout(() => {
+    baseY = lastNoseY;
+    alert("正面を記憶しました");
+  }, 500);
+};
+
+let lastNoseY = null;
+
+/**********************
  * スクロールループ
- ********************/
+ **********************/
 function scrollLoop() {
-  window.scrollBy(0, scrollSpeed);
+  if (scrollDir !== 0) {
+    window.scrollBy(0, scrollDir * 6);
+  }
   requestAnimationFrame(scrollLoop);
 }
 scrollLoop();
+
+/**********************
+ * メトロノーム
+ **********************/
+let bpm = 80;
+let beat = 0;
+let timer = null;
+
+const dots = document.getElementById("dots");
+const bpmText = document.getElementById("bpmText");
+
+function updateDots() {
+  const arr = ["○", "○", "○", "○"];
+  arr[beat] = "●";
+  dots.innerText = arr.join(" ");
+}
+
+function tick() {
+  beat = (beat + 1) % 4;
+  updateDots();
+
+  const ctx = new AudioContext();
+  const osc = ctx.createOscillator();
+  osc.frequency.value = beat === 0 ? 1200 : 800;
+  osc.connect(ctx.destination);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.05);
+}
+
+document.getElementById("startTempo").onclick = () => {
+  if (timer) return;
+  timer = setInterval(tick, (60 / bpm) * 1000);
+};
+
+document.getElementById("stopTempo").onclick = () => {
+  clearInterval(timer);
+  timer = null;
+};
+
+document.getElementById("bpmSlider").oninput = (e) => {
+  bpm = Number(e.target.value);
+  bpmText.innerText = bpm;
+  document.getElementById("bpmValue").innerText = bpm;
+
+  if (timer) {
+    clearInterval(timer);
+    timer = setInterval(tick, (60 / bpm) * 1000);
+  }
+};
