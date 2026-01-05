@@ -1,232 +1,97 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>Face Scroll PDF Viewer</title>
+  <meta charset="UTF-8" />
+  <title>フェイススクロールPDF + メトロノーム</title>
 
-<style>
-body {
-  margin: 0;
-  background: #111;
-  color: white;
-  overflow: hidden;
-  font-family: sans-serif;
-}
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      overflow: hidden;
+    }
 
-#controls {
-  position: fixed;
-  top: 10px;
-  left: 10px;
-  z-index: 1000;
-  background: rgba(0,0,0,0.6);
-  padding: 8px;
-  border-radius: 6px;
-}
+    canvas {
+      display: block;
+      margin: auto;
+      background: #222;
+      z-index: 1;
+    }
 
-#tempoBox {
-  position: fixed;
-  right: 20px;
-  bottom: 20px;
-  width: 220px;
-  text-align: center;
-  z-index: 1000;
-  background: rgba(0,0,0,0.6);
-  padding: 10px;
-  border-radius: 10px;
-}
+    /* 操作パネル */
+    #controls {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 9999;
+      background: rgba(0,0,0,0.85);
+      padding: 12px;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+    }
 
-#tempoDots {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
+    #controls button,
+    #controls input {
+      margin-top: 6px;
+      width: 100%;
+    }
 
-.dot {
-  width: 14px;
-  height: 14px;
-  background: #555;
-  border-radius: 50%;
-}
+    /* テンポ表示（右下固定） */
+    #tempoBox {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 9999;
+      color: white;
+      font-size: 20px;
+      background: rgba(0,0,0,0.7);
+      padding: 12px 18px;
+      border-radius: 10px;
+      text-align: center;
+    }
 
-.active {
-  background: #0f0;
-  transform: scale(1.6);
-}
-
-canvas {
-  display: block;
-  margin: auto;
-}
-</style>
+    #dots {
+      margin-top: 6px;
+      font-size: 22px;
+      letter-spacing: 6px;
+    }
+  </style>
 </head>
 
 <body>
 
-<!-- 操作UI -->
-<div id="controls">
-  <input type="file" id="pdfInput" accept="application/pdf"><br><br>
-  <button id="setCenter">この顔が正面</button>
-</div>
+  <!-- 操作UI -->
+  <div id="controls">
+    <input type="file" id="pdfInput" accept="application/pdf" />
 
-<canvas id="pdfCanvas"></canvas>
+    <button id="calibrateBtn">この顔が正面</button>
 
-<!-- テンポ -->
-<div id="tempoBox">
-  <div id="tempoDots">
-    <div class="dot"></div>
-    <div class="dot"></div>
-    <div class="dot"></div>
-    <div class="dot"></div>
+    <label>BPM: <span id="bpmValue">80</span></label>
+    <input type="range" id="bpmSlider" min="50" max="160" value="80" />
+
+    <button id="startTempo">▶ 再生</button>
+    <button id="stopTempo">⏸ 停止</button>
   </div>
 
-  <div>BPM: <span id="bpmValue">80</span></div>
-  <input type="range" id="bpm" min="50" max="160" value="80"><br><br>
-  <button id="startTempo">▶</button>
-  <button id="stopTempo">■</button>
-</div>
+  <!-- PDF表示 -->
+  <div id="pdfContainer"></div>
 
-<!-- PDF.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- テンポ表示 -->
+  <div id="tempoBox">
+    BPM <span id="bpmText">80</span>
+    <div id="dots">● ○ ○ ○</div>
+  </div>
 
-<!-- MediaPipe -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
-<script>
-/* ========= PDF ========= */
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  <!-- MediaPipe -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
 
-const canvas = document.getElementById("pdfCanvas");
-const ctx = canvas.getContext("2d");
-
-document.getElementById("pdfInput").addEventListener("change", async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const url = URL.createObjectURL(file);
-  const pdf = await pdfjsLib.getDocument(url).promise;
-
-  let y = 0;
-  const scale = 1.4;
-  const pages = [];
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale });
-    pages.push({ page, viewport });
-  }
-
-  canvas.width = pages[0].viewport.width;
-  canvas.height = pages.reduce((s,p)=>s+p.viewport.height,0);
-
-  for (const p of pages) {
-    await p.page.render({
-      canvasContext: ctx,
-      viewport: p.viewport,
-      transform: [1,0,0,1,0,y]
-    }).promise;
-    y += p.viewport.height;
-  }
-});
-
-/* ========= METRONOME ========= */
-let bpm = 80;
-let beat = 0;
-let timer = null;
-
-const dots = document.querySelectorAll(".dot");
-const bpmSlider = document.getElementById("bpm");
-const bpmValue = document.getElementById("bpmValue");
-
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-function playClick() {
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.frequency.value = beat === 0 ? 1200 : 800;
-  gain.gain.value = 0.2;
-
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-
-  osc.start();
-  osc.stop(audioCtx.currentTime + 0.05);
-}
-
-function tick() {
-  dots.forEach(d => d.classList.remove("active"));
-  dots[beat].classList.add("active");
-  playClick();
-  beat = (beat + 1) % 4;
-}
-
-function startTempo() {
-  stopTempo();
-  tick();
-  timer = setInterval(tick, 60000 / bpm);
-}
-
-function stopTempo() {
-  clearInterval(timer);
-  timer = null;
-}
-
-bpmSlider.oninput = () => {
-  bpm = bpmSlider.value;
-  bpmValue.innerText = bpm;
-  if (timer) startTempo();
-};
-
-document.getElementById("startTempo").onclick = () => {
-  audioCtx.resume();
-  startTempo();
-};
-document.getElementById("stopTempo").onclick = stopTempo;
-
-/* ========= FACE SCROLL ========= */
-let baseY = null;
-let lastY = null;
-let speed = 0;
-
-const video = document.createElement("video");
-video.style.display = "none";
-document.body.appendChild(video);
-
-const faceMesh = new FaceMesh({
-  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
-});
-
-faceMesh.setOptions({ maxNumFaces: 1 });
-
-faceMesh.onResults(r => {
-  if (!r.multiFaceLandmarks) return;
-  const y = r.multiFaceLandmarks[0][1].y;
-  lastY = y;
-  if (baseY === null) return;
-
-  const diff = y - baseY;
-  if (diff > 0.02) speed = 4;
-  else if (diff < -0.02) speed = -4;
-  else speed = 0;
-});
-
-document.getElementById("setCenter").onclick = () => {
-  alert("正面を向いてください");
-  setTimeout(() => baseY = lastY, 1500);
-};
-
-const cam = new Camera(video, {
-  onFrame: async () => {
-    await faceMesh.send({ image: video });
-    if (speed !== 0) window.scrollBy(0, speed);
-  },
-  width: 640,
-  height: 480
-});
-
-cam.start();
-</script>
+  <!-- メイン処理 -->
+  <script src="main.js"></script>
 
 </body>
 </html>
