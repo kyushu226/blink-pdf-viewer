@@ -13,28 +13,27 @@ let pdfDoc = null;
 let pageCanvases = [];
 
 // PDF読み込み
-pdfjsLib.getDocument("sample.pdf").promise.then((pdf) => {
+pdfjsLib.getDocument("sample.pdf").promise.then(async (pdf) => {
   pdfDoc = pdf;
-  renderAllPages();
+  await renderAllPages();
 });
 
-// 全ページを描画する関数
-function renderAllPages() {
+// 全ページ描画（順序を保証）
+async function renderAllPages() {
   for (let i = 1; i <= pdfDoc.numPages; i++) {
-    pdfDoc.getPage(i).then((page) => {
-      const viewport = page.getViewport({ scale: 1.2 });
-      const canvas = document.createElement("canvas");
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      canvas.style.display = "block";
-      canvas.style.margin = "10px auto";
-      pdfContainer.appendChild(canvas);
-      page.render({
-        canvasContext: canvas.getContext("2d"),
-        viewport: viewport,
-      });
-      pageCanvases[i - 1] = canvas;
-    });
+    const page = await pdfDoc.getPage(i);
+    const viewport = page.getViewport({ scale: 1.2 });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.display = "block";
+    canvas.style.margin = "10px auto";
+    pdfContainer.appendChild(canvas);
+    pageCanvases[i - 1] = canvas;
+    await page.render({
+      canvasContext: canvas.getContext("2d"),
+      viewport: viewport,
+    }).promise;
   }
 }
 
@@ -60,6 +59,8 @@ document.body.appendChild(debug);
 
 // 顔の上下位置を追跡
 let prevY = null;
+const SCROLL_SENSITIVITY = 800; // 顔の動きに応じたスクロール量調整
+const SCROLL_THRESHOLD = 0.01; // 変化が小さいとスクロールしない
 
 const faceMesh = new FaceMesh({
   locateFile: (file) =>
@@ -75,22 +76,27 @@ faceMesh.setOptions({
 faceMesh.onResults((results) => {
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     const landmarks = results.multiFaceLandmarks[0];
-    // 顔の中央の y 座標（鼻先あたり）
-    const noseY = landmarks[1].y; // 正規化された0~1
+
+    // 顔の上下位置（鼻と両目の平均 y）
+    const noseY = landmarks[1].y;
+    const leftEyeY = (landmarks[33].y + landmarks[133].y) / 2;
+    const rightEyeY = (landmarks[362].y + landmarks[263].y) / 2;
+    const faceY = (noseY + leftEyeY + rightEyeY) / 3;
 
     if (prevY !== null) {
-      const delta = noseY - prevY;
-      // 顔が下に動いたら下にスクロール
-      window.scrollBy({
-        top: delta * 1000, // 感度調整
-        behavior: "smooth",
-      });
+      const delta = faceY - prevY;
+      if (Math.abs(delta) > SCROLL_THRESHOLD) {
+        // 顔が下に動いたら下にスクロール、上に動いたら上にスクロール
+        window.scrollBy({
+          top: delta * SCROLL_SENSITIVITY,
+          behavior: "smooth",
+        });
+      }
     }
-    prevY = noseY;
-
-    debug.innerText = `🙂 顔検出中`;
+    prevY = faceY;
+    debug.innerText = "🙂 顔検出中";
   } else {
-    debug.innerText = `😑 顔が見えない`;
+    debug.innerText = "😑 顔が見えない";
   }
 });
 
