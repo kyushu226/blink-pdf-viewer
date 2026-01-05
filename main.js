@@ -18,7 +18,7 @@ pdfjsLib.getDocument("sample.pdf").promise.then(async (pdf) => {
   await renderAllPages();
 });
 
-// 全ページ描画（順序を保証）
+// 全ページ描画（順序保証）
 async function renderAllPages() {
   for (let i = 1; i <= pdfDoc.numPages; i++) {
     const page = await pdfDoc.getPage(i);
@@ -38,7 +38,7 @@ async function renderAllPages() {
 }
 
 // ===============================
-// カメラ & 顔検出（MediaPipe）
+// カメラ & 顔検出
 // ===============================
 const video = document.createElement("video");
 video.style.display = "none";
@@ -57,10 +57,13 @@ debug.style.zIndex = "9999";
 debug.innerText = "起動中...";
 document.body.appendChild(debug);
 
-// 顔の上下位置を追跡
-let prevY = null;
-const SCROLL_SENSITIVITY = 2500; // ← ここを大きくして大胆スクロール
-const SCROLL_THRESHOLD = 0.005; // 小さな動きでも反応させる
+// ===============================
+// 顔の上下でスクロール開始／停止
+// ===============================
+let scrollSpeed = 0; // スクロール量（正：下、負：上）
+const SCROLL_MAX_SPEED = 15; // 最大スクロール速度
+const FACE_UPPER = 0.48; // 顔を上向きと判定するY座標
+const FACE_LOWER = 0.55; // 顔を下向きと判定するY座標
 
 const faceMesh = new FaceMesh({
   locateFile: (file) =>
@@ -73,29 +76,38 @@ faceMesh.setOptions({
   minTrackingConfidence: 0.5,
 });
 
+// ループでスクロール
+function scrollLoop() {
+  if (scrollSpeed !== 0) {
+    window.scrollBy({ top: scrollSpeed, behavior: "auto" });
+  }
+  requestAnimationFrame(scrollLoop);
+}
+scrollLoop();
+
+// 顔検出結果
 faceMesh.onResults((results) => {
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     const landmarks = results.multiFaceLandmarks[0];
-
-    // 顔の上下位置（鼻と両目の平均 y）
+    // 顔中央のy座標（鼻＋両目）
     const noseY = landmarks[1].y;
     const leftEyeY = (landmarks[33].y + landmarks[133].y) / 2;
     const rightEyeY = (landmarks[362].y + landmarks[263].y) / 2;
     const faceY = (noseY + leftEyeY + rightEyeY) / 3;
 
-    if (prevY !== null) {
-      const delta = faceY - prevY;
-      if (Math.abs(delta) > SCROLL_THRESHOLD) {
-        // 顔の上下変化に応じて大胆スクロール
-        window.scrollBy({
-          top: delta * SCROLL_SENSITIVITY,
-          behavior: "smooth",
-        });
-      }
+    // 上下判定
+    if (faceY < FACE_UPPER) {
+      scrollSpeed = -SCROLL_MAX_SPEED; // 上向き → 上スクロール
+      debug.innerText = "⬆ 顔上向き：スクロール上";
+    } else if (faceY > FACE_LOWER) {
+      scrollSpeed = SCROLL_MAX_SPEED; // 下向き → 下スクロール
+      debug.innerText = "⬇ 顔下向き：スクロール下";
+    } else {
+      scrollSpeed = 0; // 中央 → 停止
+      debug.innerText = "➡ 顔中央：スクロール停止";
     }
-    prevY = faceY;
-    debug.innerText = "🙂 顔検出中";
   } else {
+    scrollSpeed = 0;
     debug.innerText = "😑 顔が見えない";
   }
 });
