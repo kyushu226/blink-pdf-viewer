@@ -2,8 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>顔操作PDFビューア（BPM・メトロノーム対応）</title>
-
+  <title>顔操作PDFビューア（BPM・メトロノーム）</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
   <style>
@@ -11,7 +10,7 @@
       margin: 0;
       background: #111;
       overflow: hidden;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont;
+      font-family: system-ui, -apple-system;
     }
 
     canvas {
@@ -19,7 +18,6 @@
       margin: 0 auto;
     }
 
-    /* 正面キャリブレーション */
     #calibration {
       position: fixed;
       top: 20px;
@@ -33,17 +31,38 @@
       padding: 10px 20px;
       border-radius: 10px;
       border: none;
-      cursor: pointer;
     }
 
-    /* BPMコントロール */
+    #pdfSelector {
+      position: fixed;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10000;
+      background: rgba(0,0,0,0.7);
+      padding: 10px 14px;
+      border-radius: 12px;
+      color: white;
+    }
+
+    #tempo {
+      position: fixed;
+      right: 20px;
+      bottom: 120px;
+      color: white;
+      font-size: 28px;
+      letter-spacing: 8px;
+      font-family: monospace;
+      z-index: 10000;
+    }
+
     #bpmControl {
       position: fixed;
       right: 20px;
       bottom: 20px;
       background: rgba(0,0,0,0.75);
       color: white;
-      padding: 14px 16px;
+      padding: 14px;
       border-radius: 14px;
       z-index: 10000;
       width: 200px;
@@ -52,7 +71,7 @@
     #bpmLabel {
       text-align: center;
       font-size: 18px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       font-weight: bold;
     }
 
@@ -67,60 +86,34 @@
       font-size: 16px;
       border-radius: 8px;
       border: none;
-      cursor: pointer;
-    }
-
-    /* テンポ表示 */
-    #tempo {
-      position: fixed;
-      right: 20px;
-      bottom: 110px;
-      color: white;
-      font-size: 28px;
-      letter-spacing: 6px;
-      font-family: monospace;
-      z-index: 10000;
-      user-select: none;
     }
   </style>
 </head>
 
 <body>
 
-  <!-- 正面キャリブレーション -->
-  <div id="calibration">
-    <button id="setCenter">この顔が正面</button>
-  </div>
+<div id="calibration">
+  <button id="setCenter">この顔が正面</button>
+</div>
 
-  <!-- PDF表示 -->
-  <canvas id="pdfCanvas"></canvas>
+<div id="pdfSelector">
+  <input type="file" id="pdfInput" accept="application/pdf">
+</div>
 
-  <!-- テンポ表示 -->
-  <div id="tempo">●・・・・</div>
+<canvas id="pdfCanvas"></canvas>
 
-  <!-- BPM操作 -->
-  <div id="bpmControl">
-    <div id="bpmLabel">BPM: 120</div>
-    <input
-      type="range"
-      id="bpmSlider"
-      min="50"
-      max="160"
-      value="120"
-      step="1"
-    />
-    <button id="bpmToggle">▶ 再生</button>
-  </div>
+<div id="tempo">①・②・③・④</div>
 
-  <!-- PDF.js（必須） -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<div id="bpmControl">
+  <div id="bpmLabel">BPM: 120</div>
+  <input type="range" id="bpmSlider" min="50" max="160" value="120">
+  <button id="bpmToggle">▶ 再生</button>
+</div>
 
-  <!-- MediaPipe -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
-
-  <!-- メインロジック -->
-  <script src="main.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+<script src="main.js"></script>
 
 </body>
 </html>
