@@ -58,12 +58,12 @@ debug.innerText = "起動中...";
 document.body.appendChild(debug);
 
 // ===============================
-// 顔の上下でスクロール開始／停止
+// 顔の上下でスクロール
 // ===============================
 let scrollSpeed = 0; // スクロール量（正：下、負：上）
-const SCROLL_MAX_SPEED = 15; // 最大スクロール速度
-const FACE_UPPER = 0.48; // 顔を上向きと判定するY座標
-const FACE_LOWER = 0.55; // 顔を下向きと判定するY座標
+const SCROLL_MAX_SPEED = 15; // 1フレームあたりのスクロール量
+const FACE_UPPER = 0.48;      // 顔上向き判定
+const FACE_LOWER = 0.55;      // 顔下向き判定
 
 const faceMesh = new FaceMesh({
   locateFile: (file) =>
@@ -89,6 +89,7 @@ scrollLoop();
 faceMesh.onResults((results) => {
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     const landmarks = results.multiFaceLandmarks[0];
+
     // 顔中央のy座標（鼻＋両目）
     const noseY = landmarks[1].y;
     const leftEyeY = (landmarks[33].y + landmarks[133].y) / 2;
@@ -100,10 +101,10 @@ faceMesh.onResults((results) => {
       scrollSpeed = -SCROLL_MAX_SPEED; // 上向き → 上スクロール
       debug.innerText = "⬆ 顔上向き：スクロール上";
     } else if (faceY > FACE_LOWER) {
-      scrollSpeed = SCROLL_MAX_SPEED; // 下向き → 下スクロール
+      scrollSpeed = SCROLL_MAX_SPEED;  // 下向き → 下スクロール
       debug.innerText = "⬇ 顔下向き：スクロール下";
     } else {
-      scrollSpeed = 0; // 中央 → 停止
+      scrollSpeed = 0;                 // 中央 → 停止
       debug.innerText = "➡ 顔中央：スクロール停止";
     }
   } else {
