@@ -59,8 +59,8 @@ document.body.appendChild(debug);
 
 // 顔の上下位置を追跡
 let prevY = null;
-const SCROLL_SENSITIVITY = 800; // 顔の動きに応じたスクロール量調整
-const SCROLL_THRESHOLD = 0.01; // 変化が小さいとスクロールしない
+const SCROLL_SENSITIVITY = 2500; // ← ここを大きくして大胆スクロール
+const SCROLL_THRESHOLD = 0.005; // 小さな動きでも反応させる
 
 const faceMesh = new FaceMesh({
   locateFile: (file) =>
@@ -86,7 +86,7 @@ faceMesh.onResults((results) => {
     if (prevY !== null) {
       const delta = faceY - prevY;
       if (Math.abs(delta) > SCROLL_THRESHOLD) {
-        // 顔が下に動いたら下にスクロール、上に動いたら上にスクロール
+        // 顔の上下変化に応じて大胆スクロール
         window.scrollBy({
           top: delta * SCROLL_SENSITIVITY,
           behavior: "smooth",
