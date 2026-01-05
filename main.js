@@ -1,42 +1,46 @@
 // ===============================
 // PDF.js 初期設定
 // ===============================
-const canvas = document.getElementById("pdfCanvas");
-const ctx = canvas.getContext("2d");
+const pdfContainer = document.createElement("div");
+pdfContainer.style.width = "100vw";
+pdfContainer.style.background = "#111";
+document.body.appendChild(pdfContainer);
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
 let pdfDoc = null;
-let pageNum = 1;
+let pageCanvases = [];
 
 // PDF読み込み
 pdfjsLib.getDocument("sample.pdf").promise.then((pdf) => {
   pdfDoc = pdf;
-  renderPage();
+  renderAllPages();
 });
 
-// PDFを描画する関数
-function renderPage() {
-  pdfDoc.getPage(pageNum).then((page) => {
-    const viewport = page.getViewport({ scale: 1.5 });
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    page.render({
-      canvasContext: ctx,
-      viewport: viewport,
+// 全ページを描画する関数
+function renderAllPages() {
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    pdfDoc.getPage(i).then((page) => {
+      const viewport = page.getViewport({ scale: 1.2 });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.style.display = "block";
+      canvas.style.margin = "10px auto";
+      pdfContainer.appendChild(canvas);
+      page.render({
+        canvasContext: canvas.getContext("2d"),
+        viewport: viewport,
+      });
+      pageCanvases[i - 1] = canvas;
     });
-
-    debug.innerText = `📄 ページ ${pageNum} / ${pdfDoc.numPages}`;
-  });
+  }
 }
 
 // ===============================
 // カメラ & 顔検出（MediaPipe）
 // ===============================
-
-// video要素（非表示）
 const video = document.createElement("video");
 video.style.display = "none";
 document.body.appendChild(video);
@@ -54,16 +58,9 @@ debug.style.zIndex = "9999";
 debug.innerText = "起動中...";
 document.body.appendChild(debug);
 
-// ===============================
-// 顔検出＆まばたき判定
-// ===============================
-let faceDetected = true; // 初期は顔あり
-let blinkStart = null;   // 目を閉じた開始時間
+// 顔の上下位置を追跡
+let prevY = null;
 
-const SHORT_BLINK = 300;   // 短いまばたき閾値（ms）
-const LONG_BLINK = 1800;   // 長いまばたき閾値（ms）
-
-// FaceMesh 初期化
 const faceMesh = new FaceMesh({
   locateFile: (file) =>
     `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
@@ -71,49 +68,29 @@ const faceMesh = new FaceMesh({
 
 faceMesh.setOptions({
   maxNumFaces: 1,
-  minDetectionConfidence: 0.3,
-  minTrackingConfidence: 0.3,
+  minDetectionConfidence: 0.5,
+  minTrackingConfidence: 0.5,
 });
 
-// 顔検出結果
 faceMesh.onResults((results) => {
-  const now = Date.now();
-
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-    // 顔あり
-    if (!faceDetected) {
-      // 顔が戻った瞬間にまばたきを判定
-      const duration = now - blinkStart;
+    const landmarks = results.multiFaceLandmarks[0];
+    // 顔の中央の y 座標（鼻先あたり）
+    const noseY = landmarks[1].y; // 正規化された0~1
 
-      if (duration > LONG_BLINK) {
-        // 長いまばたき → 前ページ
-        if (pageNum > 1) {
-          pageNum--;
-          renderPage();
-          debug.innerText = "⬅ 前のページ";
-        }
-      } else if (duration > SHORT_BLINK) {
-        // 短いまばたき → 次ページ
-        if (pageNum < pdfDoc.numPages) {
-          pageNum++;
-          renderPage();
-          debug.innerText = "➡ 次のページ";
-        }
-      }
-
-      blinkStart = null;
-      faceDetected = true;
-    } else {
-      debug.innerText = "🙂 顔検出中";
+    if (prevY !== null) {
+      const delta = noseY - prevY;
+      // 顔が下に動いたら下にスクロール
+      window.scrollBy({
+        top: delta * 1000, // 感度調整
+        behavior: "smooth",
+      });
     }
+    prevY = noseY;
+
+    debug.innerText = `🙂 顔検出中`;
   } else {
-    // 顔なし
-    if (faceDetected) {
-      // 目を閉じ始めた時間を記録
-      blinkStart = now;
-      faceDetected = false;
-    }
-    debug.innerText = "😑 顔が見えない";
+    debug.innerText = `😑 顔が見えない`;
   }
 });
 
@@ -137,4 +114,3 @@ navigator.mediaDevices
   .catch(() => {
     debug.innerText = "❌ カメラ起動失敗";
   });
-
