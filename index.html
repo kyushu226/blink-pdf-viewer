@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>まばたきPDFビューア</title>
+  <style>
+    body {
+      margin: 0;
+      background: #111;
+      color: white;
+    }
+    #pdf {
+      width: 100vw;
+      height: 100vh;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <iframe id="pdf" src="sample.pdf"></iframe>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+  <script src="main.js"></script>
+</body>
+</html>
