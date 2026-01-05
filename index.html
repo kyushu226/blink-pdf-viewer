@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>Face Scroll PDF Viewer</title>
 
 <style>
@@ -17,7 +17,10 @@ body {
   position: fixed;
   top: 10px;
   left: 10px;
-  z-index: 10;
+  z-index: 1000;
+  background: rgba(0,0,0,0.6);
+  padding: 8px;
+  border-radius: 6px;
 }
 
 #tempoBox {
@@ -26,12 +29,16 @@ body {
   bottom: 20px;
   width: 220px;
   text-align: center;
+  z-index: 1000;
+  background: rgba(0,0,0,0.6);
+  padding: 10px;
+  border-radius: 10px;
 }
 
 #tempoDots {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .dot {
@@ -39,12 +46,11 @@ body {
   height: 14px;
   background: #555;
   border-radius: 50%;
-  transition: transform 0.1s, background 0.1s;
 }
 
 .active {
   background: #0f0;
-  transform: scale(1.8);
+  transform: scale(1.6);
 }
 
 canvas {
@@ -56,13 +62,15 @@ canvas {
 
 <body>
 
+<!-- 操作UI -->
 <div id="controls">
-  <input type="file" id="pdfInput" accept="application/pdf">
+  <input type="file" id="pdfInput" accept="application/pdf"><br><br>
   <button id="setCenter">この顔が正面</button>
 </div>
 
 <canvas id="pdfCanvas"></canvas>
 
+<!-- テンポ -->
 <div id="tempoBox">
   <div id="tempoDots">
     <div class="dot"></div>
@@ -70,9 +78,9 @@ canvas {
     <div class="dot"></div>
     <div class="dot"></div>
   </div>
+
   <div>BPM: <span id="bpmValue">80</span></div>
-  <input type="range" id="bpm" min="50" max="160" value="80">
-  <br><br>
+  <input type="range" id="bpm" min="50" max="160" value="80"><br><br>
   <button id="startTempo">▶</button>
   <button id="stopTempo">■</button>
 </div>
@@ -85,7 +93,7 @@ canvas {
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
 
 <script>
-/* ===== PDF SETUP ===== */
+/* ========= PDF ========= */
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
@@ -100,7 +108,7 @@ document.getElementById("pdfInput").addEventListener("change", async e => {
   const pdf = await pdfjsLib.getDocument(url).promise;
 
   let y = 0;
-  const scale = 1.5;
+  const scale = 1.4;
   const pages = [];
 
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -122,7 +130,7 @@ document.getElementById("pdfInput").addEventListener("change", async e => {
   }
 });
 
-/* ===== TEMPO ===== */
+/* ========= METRONOME ========= */
 let bpm = 80;
 let beat = 0;
 let timer = null;
@@ -131,15 +139,25 @@ const dots = document.querySelectorAll(".dot");
 const bpmSlider = document.getElementById("bpm");
 const bpmValue = document.getElementById("bpmValue");
 
-bpmSlider.oninput = () => {
-  bpm = bpmSlider.value;
-  bpmValue.innerText = bpm;
-  if (timer) restartTempo();
-};
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playClick() {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.frequency.value = beat === 0 ? 1200 : 800;
+  gain.gain.value = 0.2;
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.05);
+}
 
 function tick() {
   dots.forEach(d => d.classList.remove("active"));
   dots[beat].classList.add("active");
+  playClick();
   beat = (beat + 1) % 4;
 }
 
@@ -154,16 +172,22 @@ function stopTempo() {
   timer = null;
 }
 
-function restartTempo() {
+bpmSlider.oninput = () => {
+  bpm = bpmSlider.value;
+  bpmValue.innerText = bpm;
   if (timer) startTempo();
-}
+};
 
-document.getElementById("startTempo").onclick = startTempo;
+document.getElementById("startTempo").onclick = () => {
+  audioCtx.resume();
+  startTempo();
+};
 document.getElementById("stopTempo").onclick = stopTempo;
 
-/* ===== FACE SCROLL ===== */
+/* ========= FACE SCROLL ========= */
 let baseY = null;
-let scrollSpeed = 0;
+let lastY = null;
+let speed = 0;
 
 const video = document.createElement("video");
 video.style.display = "none";
@@ -173,34 +197,29 @@ const faceMesh = new FaceMesh({
   locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
 });
 
-faceMesh.setOptions({
-  maxNumFaces: 1,
-  refineLandmarks: true
-});
+faceMesh.setOptions({ maxNumFaces: 1 });
 
 faceMesh.onResults(r => {
   if (!r.multiFaceLandmarks) return;
   const y = r.multiFaceLandmarks[0][1].y;
+  lastY = y;
   if (baseY === null) return;
 
   const diff = y - baseY;
-  if (diff > 0.015) scrollSpeed = 3;
-  else if (diff < -0.015) scrollSpeed = -3;
-  else scrollSpeed = 0;
+  if (diff > 0.02) speed = 4;
+  else if (diff < -0.02) speed = -4;
+  else speed = 0;
 });
 
 document.getElementById("setCenter").onclick = () => {
-  baseY = null;
-  alert("顔を正面に向けてください");
+  alert("正面を向いてください");
   setTimeout(() => baseY = lastY, 1500);
 };
-
-let lastY = null;
 
 const cam = new Camera(video, {
   onFrame: async () => {
     await faceMesh.send({ image: video });
-    if (scrollSpeed !== 0) window.scrollBy(0, scrollSpeed);
+    if (speed !== 0) window.scrollBy(0, speed);
   },
   width: 640,
   height: 480
