@@ -3,7 +3,7 @@
 // ===============================
 const pdfContainer = document.createElement("div");
 pdfContainer.style.width = "100%";
-pdfContainer.style.maxWidth = "100vw"; // iPad画面にフィット
+pdfContainer.style.maxWidth = "100vw";
 pdfContainer.style.background = "#111";
 pdfContainer.style.display = "flex";
 pdfContainer.style.flexDirection = "column";
@@ -16,13 +16,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 let pdfDoc = null;
 let pageCanvases = [];
 
-// PDF読み込み
 pdfjsLib.getDocument("sample.pdf").promise.then(async (pdf) => {
   pdfDoc = pdf;
   await renderAllPages();
 });
 
-// 全ページ描画（縦に並べる）
 async function renderAllPages() {
   for (let i = 1; i <= pdfDoc.numPages; i++) {
     const page = await pdfDoc.getPage(i);
@@ -32,7 +30,7 @@ async function renderAllPages() {
     canvas.height = viewport.height;
     canvas.style.display = "block";
     canvas.style.margin = "10px 0";
-    canvas.style.maxWidth = "95vw"; // iPad画面幅に収める
+    canvas.style.maxWidth = "95vw";
     pdfContainer.appendChild(canvas);
     pageCanvases[i - 1] = canvas;
     await page.render({
@@ -65,9 +63,8 @@ document.body.appendChild(debug);
 // ===============================
 // 顔の上下でスクロール（中央基準）
 let scrollSpeed = 0;
-const SCROLL_MAX_SPEED = 10;  // iPad用に少し控えめ
+const SCROLL_MAX_SPEED = 10;
 const DELTA_THRESHOLD = 0.02;
-
 let baselineY = null;
 
 const faceMesh = new FaceMesh({
@@ -81,7 +78,6 @@ faceMesh.setOptions({
   minTrackingConfidence: 0.5,
 });
 
-// ループでスクロール
 function scrollLoop() {
   if (scrollSpeed !== 0) {
     window.scrollBy({ top: scrollSpeed, behavior: "auto" });
@@ -90,7 +86,6 @@ function scrollLoop() {
 }
 scrollLoop();
 
-// 顔検出結果
 faceMesh.onResults((results) => {
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     const landmarks = results.multiFaceLandmarks[0];
@@ -108,13 +103,13 @@ faceMesh.onResults((results) => {
     const delta = faceY - baselineY;
 
     if (delta > DELTA_THRESHOLD) {
-      scrollSpeed = SCROLL_MAX_SPEED;   // 下スクロール
+      scrollSpeed = SCROLL_MAX_SPEED;
       debug.innerText = `⬇ 下向き：スクロール下 (Δ=${delta.toFixed(3)})`;
     } else if (delta < -DELTA_THRESHOLD) {
-      scrollSpeed = -SCROLL_MAX_SPEED;  // 上スクロール
+      scrollSpeed = -SCROLL_MAX_SPEED;
       debug.innerText = `⬆ 上向き：スクロール上 (Δ=${delta.toFixed(3)})`;
     } else {
-      scrollSpeed = 0;                  // 停止
+      scrollSpeed = 0;
       debug.innerText = `➡ 中央：スクロール停止 (Δ=${delta.toFixed(3)})`;
     }
   } else {
@@ -123,7 +118,6 @@ faceMesh.onResults((results) => {
   }
 });
 
-// カメラ起動
 const camera = new Camera(video, {
   onFrame: async () => {
     await faceMesh.send({ image: video });
@@ -143,3 +137,61 @@ navigator.mediaDevices
   .catch(() => {
     debug.innerText = "❌ カメラ起動失敗";
   });
+
+// ===============================
+// 右下テンポ表示
+// ===============================
+const tempoDisplay = document.createElement("div");
+tempoDisplay.id = "tempoDisplay";
+tempoDisplay.style.position = "fixed";
+tempoDisplay.style.bottom = "20px";
+tempoDisplay.style.right = "20px";
+tempoDisplay.style.width = "120px";
+tempoDisplay.style.height = "20px";
+tempoDisplay.style.display = "flex";
+tempoDisplay.style.alignItems = "center";
+tempoDisplay.style.justifyContent = "flex-start";
+tempoDisplay.style.background = "rgba(0,0,0,0.5)";
+tempoDisplay.style.padding = "2px 5px";
+tempoDisplay.style.borderRadius = "8px";
+tempoDisplay.style.zIndex = "9999";
+document.body.appendChild(tempoDisplay);
+
+const dot = document.createElement("div");
+dot.style.width = "10px";
+dot.style.height = "10px";
+dot.style.borderRadius = "50%";
+dot.style.background = "lime";
+dot.style.transform = "scale(0.5)";
+dot.style.transition = "transform 0.1s";
+tempoDisplay.appendChild(dot);
+
+// BPMスライダー
+const bpmSlider = document.createElement("input");
+bpmSlider.type = "range";
+bpmSlider.min = "50";
+bpmSlider.max = "160";
+bpmSlider.value = "120";
+bpmSlider.style.marginLeft = "10px";
+tempoDisplay.appendChild(bpmSlider);
+
+let bpm = parseInt(bpmSlider.value);
+bpmSlider.addEventListener("input", (e) => {
+  bpm = parseInt(e.target.value);
+});
+
+// テンポアニメーション
+let dotPos = 0;
+let direction = 1;
+
+function tempoLoop() {
+  const beatTime = 60 / bpm; // 1拍の秒数
+  // 左→右移動
+  dotPos += direction * 1; // 1%ずつ
+  if (dotPos >= 100) { dotPos = 100; direction = -1; }
+  if (dotPos <= 0) { dotPos = 0; direction = 1; }
+
+  dot.style.transform = `translateX(${dotPos}%) scale(${0.5 + 0.5 * Math.sin((dotPos/100)*Math.PI)})`;
+  requestAnimationFrame(tempoLoop);
+}
+tempoLoop();
