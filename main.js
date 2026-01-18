@@ -38,6 +38,9 @@ let baseY = null;
 let lastNoseY = null;
 let scrollDir = 0;
 
+// ★ 追加：スクロール機能のON/OFF（停止ボタン用）
+let scrollEnabled = true;
+
 // MediaPipe FaceMesh（JSとWASMを同じ版に固定）
 const faceMesh = new FaceMesh({
   locateFile: (f) =>
@@ -59,9 +62,13 @@ faceMesh.onResults((results) => {
   if (baseY === null) return;
 
   const diff = noseY - baseY;
+
   if (diff > 0.03) scrollDir = 1;
   else if (diff < -0.03) scrollDir = -1;
   else scrollDir = 0;
+
+  // ★ 追加：停止中は必ずスクロールしない
+  if (!scrollEnabled) scrollDir = 0;
 });
 
 // Camera起動（Windowsで止まりやすいので video.play() を保証）
@@ -81,15 +88,30 @@ faceMesh.onResults((results) => {
     await video.play();
   } catch (e) {
     console.log("video.play() blocked (needs user gesture).");
-    // それでも faceMesh は Camera が供給するフレームで動く場合が多い
   }
 })();
 
+// 正面キャリブレーション
 document.getElementById("calibrateBtn").onclick = () => {
   if (lastNoseY === null) return alert("顔が検出されていません");
   baseY = lastNoseY;
   alert("正面を記憶しました");
 };
+
+// ★ 追加：スクロール停止/開始ボタン
+const scrollToggleBtn = document.getElementById("scrollToggle");
+if (scrollToggleBtn) {
+  scrollToggleBtn.onclick = () => {
+    scrollEnabled = !scrollEnabled;
+
+    if (!scrollEnabled) {
+      scrollDir = 0; // 即停止
+      scrollToggleBtn.textContent = "▶ スクロール開始";
+    } else {
+      scrollToggleBtn.textContent = "⏸ スクロール停止";
+    }
+  };
+}
 
 function scrollLoop() {
   if (scrollDir !== 0) {
