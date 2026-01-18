@@ -21,11 +21,7 @@
     width: 260px;
   }
 
-  #controls button {
-    width: 100%;
-    margin-top: 6px;
-  }
-
+  #controls button { width: 100%; margin-top: 6px; }
   #controls input[type="range"] { width: 100%; }
   #controls input[type="file"] { width: auto; }
 
@@ -41,11 +37,7 @@
     z-index: 9999;
   }
 
-  #dots {
-    margin-top: 6px;
-    font-size: 22px;
-    letter-spacing: 6px;
-  }
+  #dots { margin-top: 6px; font-size: 22px; letter-spacing: 6px; }
 </style>
 </head>
 
@@ -55,9 +47,7 @@
   <input type="file" id="pdfInput" accept="application/pdf"><br>
 
   <button id="calibrateBtn">この顔が正面</button>
-
   <button id="scrollToggle">⏸ スクロール停止</button>
-
 
   BPM: <span id="bpmValue">80</span>
   <input type="range" id="bpmSlider" min="50" max="220" value="80">
@@ -73,15 +63,12 @@
   <div id="dots">● ○ ○ ○</div>
 </div>
 
-<!-- PDF.js（固定） -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-
-<!-- MediaPipe（バージョン固定：超重要） -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029074/camera_utils.js"></script>
 
-<!-- あなたのコード（キャッシュ対策で ?v= を付けるの推奨） -->
-<script src="main.js?v=5"></script>
+<!-- ★ main.js は別ファイル。キャッシュ対策で番号は増やす -->
+<script src="main.js?v=6"></script>
 
 </body>
 </html>
