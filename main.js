@@ -1,129 +1,91 @@
-/******** PDF ********/
-const pdfContainer = document.getElementById("pdfContainer");
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Face Scroll PDF</title>
 
-document.getElementById("pdfInput").addEventListener("change", async e => {
-  pdfContainer.innerHTML = "";
-  const file = e.target.files[0];
-  if (!file) return;
-
-  const pdf = await pdfjsLib.getDocument(URL.createObjectURL(file)).promise;
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({ scale: 1.5 });
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    pdfContainer.appendChild(canvas);
-
-    await page.render({ canvasContext: ctx, viewport }).promise;
-  }
-});
-
-/******** Face Scroll ********/
-const video = document.createElement("video");
-video.style.display = "none";
-document.body.appendChild(video);
-
-let baseY = null;
-let lastNoseY = null;
-let scrollDir = 0;
-
-const faceMesh = new FaceMesh({
-  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`,
-});
-
-faceMesh.setOptions({
-  maxNumFaces: 1,
-  minDetectionConfidence: 0.5,
-  minTrackingConfidence: 0.5,
-});
-
-faceMesh.onResults(results => {
-  if (!results.multiFaceLandmarks?.length) return;
-
-  const noseY = results.multiFaceLandmarks[0][1].y;
-  lastNoseY = noseY;   // ★ 毎フレーム更新
-
-  if (baseY === null) return;
-
-  const diff = noseY - baseY;
-
-  if (diff > 0.03) scrollDir = 1;
-  else if (diff < -0.03) scrollDir = -1;
-  else scrollDir = 0;
-});
-
-new Camera(video, {
-  onFrame: async () => faceMesh.send({ image: video }),
-  width: 640,
-  height: 480,
-}).start();
-
-navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-  video.srcObject = stream;
-  video.play();
-});
-
-document.getElementById("calibrateBtn").onclick = () => {
-  if (lastNoseY === null) return alert("顔が検出されていません");
-  baseY = lastNoseY;
-  alert("正面を記憶しました");
-};
-
-function scrollLoop() {
-  if (scrollDir !== 0) {
-    window.scrollBy(0, scrollDir * 6);
-  }
-  requestAnimationFrame(scrollLoop);
-}
-scrollLoop();
-
-/******** Metronome ********/
-let bpm = 80;
-let beat = 0;
-let timer = null;
-
-const dots = document.getElementById("dots");
-const bpmText = document.getElementById("bpmText");
-
-function updateDots() {
-  const d = ["○","○","○","○"];
-  d[beat] = "●";
-  dots.innerText = d.join(" ");
+<style>
+body {
+  margin: 0;
+  background: #111;
 }
 
-function tick() {
-  updateDots();
-  const ctx = new AudioContext();
-  const osc = ctx.createOscillator();
-  osc.frequency.value = beat === 0 ? 1200 : 800;
-  osc.connect(ctx.destination);
-  osc.start();
-  osc.stop(ctx.currentTime + 0.05);
-  beat = (beat + 1) % 4;
+canvas {
+  display: block;
+  margin: 0 auto;
 }
 
-document.getElementById("startTempo").onclick = () => {
-  if (timer) return;
-  timer = setInterval(tick, 60000 / bpm);
-};
+#controls {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 9999;
+  background: rgba(0,0,0,0.85);
+  padding: 10px;
+  border-radius: 8px;
+  color: white;
+  width: 260px; /* ← 固定幅 */
+}
 
-document.getElementById("stopTempo").onclick = () => {
-  clearInterval(timer);
-  timer = null;
-};
+#controls button {
+  width: 100%;
+  margin-top: 6px;
+}
 
-document.getElementById("bpmSlider").oninput = e => {
-  bpm = Number(e.target.value);
-  bpmText.textContent = bpm;
-  document.getElementById("bpmValue").textContent = bpm;
-  if (timer) {
-    clearInterval(timer);
-    timer = setInterval(tick, 60000 / bpm);
-  }
-};
+#controls input[type="range"] {
+  width: 100%;
+}
+
+#controls input[type="file"] {
+  width: auto;   /* ← ここが重要 */
+}
+
+#tempoBox {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  padding: 10px 16px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+#dots {
+  margin-top: 6px;
+  font-size: 22px;
+  letter-spacing: 6px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="controls">
+  <input type="file" id="pdfInput" accept="application/pdf"><br>
+
+  <button id="calibrateBtn">この顔が正面</button>
+
+  BPM: <span id="bpmValue">80</span>
+  <input type="range" id="bpmSlider" min="50" max="160" value="80">
+
+  <button id="startTempo">▶ 再生</button>
+  <button id="stopTempo">⏸ 停止</button>
+</div>
+
+<div id="pdfContainer"></div>
+
+<div id="tempoBox">
+  BPM <span id="bpmText">80</span>
+  <div id="dots">● ○ ○ ○</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh@0.4.1633559619/face_mesh.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1640029074/camera_utils.js"></script>
+<script src="main.js"></script>
+
+
+
+</body>
+</html>
